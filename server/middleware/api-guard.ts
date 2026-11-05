@@ -5,9 +5,9 @@ export default defineEventHandler((event) => {
   }
 
   const { apiToken } = useRuntimeConfig(event)
-  const token = (getHeader(event, 'authorization') ?? '').replace(/^Bearer /i, '')
+  const token = apiToken.trim()
 
-  if (!apiToken || token !== apiToken) {
+  if (!token || getHeader(event, 'authorization') !== `Bearer ${token}`) {
     throw createError({ statusCode: 401, message: 'Invalid token' })
   }
 })

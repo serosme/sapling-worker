@@ -1,29 +1,62 @@
-import { desc, gte } from 'drizzle-orm'
+import { asc, gte } from 'drizzle-orm'
 
 export type ChatRole = (typeof schema.chatMessages.$inferSelect)['role']
 
-export interface ChatMessage {
+export interface ChatMessageRow {
+  id: number
   role: ChatRole
   content: string
+  createdAt: Date
 }
 
-const DAY_MS = 24 * 60 * 60 * 1000
 const HISTORY_DAYS = 7
-const SHANGHAI_OFFSET_MS = 8 * 60 * 60 * 1000
 
-export async function addChatMessage(role: ChatRole, content: string): Promise<void> {
-  await db.insert(schema.chatMessages).values({ role, content })
+export async function addUserMessage(content: string): Promise<ChatMessageRow> {
+  const [inserted] = await db
+    .insert(schema.chatMessages)
+    .values({ role: 'user', content })
+    .returning({
+      id: schema.chatMessages.id,
+      role: schema.chatMessages.role,
+      content: schema.chatMessages.content,
+      createdAt: schema.chatMessages.createdAt,
+    })
+
+  if (!inserted) {
+    throw new Error('insert chat_messages returned no row')
+  }
+
+  return inserted
 }
 
-export async function listChatMessages(): Promise<ChatMessage[]> {
-  const shanghaiTodayStart = Math.floor((Date.now() + SHANGHAI_OFFSET_MS) / DAY_MS) * DAY_MS
-  const since = new Date(shanghaiTodayStart - (HISTORY_DAYS - 1) * DAY_MS - SHANGHAI_OFFSET_MS)
+export async function addAssistantMessage(content: string): Promise<void> {
+  await db.insert(schema.chatMessages).values({ role: 'assistant', content })
+}
 
-  const rows = await db
-    .select({ role: schema.chatMessages.role, content: schema.chatMessages.content })
+export async function listAllMessages(): Promise<ChatMessageRow[]> {
+  return db
+    .select({
+      id: schema.chatMessages.id,
+      role: schema.chatMessages.role,
+      content: schema.chatMessages.content,
+      createdAt: schema.chatMessages.createdAt,
+    })
     .from(schema.chatMessages)
-    .where(gte(schema.chatMessages.createdAt, since))
-    .orderBy(desc(schema.chatMessages.id))
+    .orderBy(asc(schema.chatMessages.id))
+}
 
-  return rows.reverse()
+export function listContextMessages() {
+  return db
+    .select({
+      role: schema.chatMessages.role,
+      content: schema.chatMessages.content,
+    })
+    .from(schema.chatMessages)
+    .where(gte(schema.chatMessages.createdAt, sevenDaysAgo()))
+    .orderBy(asc(schema.chatMessages.id))
+}
+
+function sevenDaysAgo(): Date {
+  const nowSeconds = Math.floor(Date.now() / 1000)
+  return new Date((nowSeconds - HISTORY_DAYS * 24 * 60 * 60) * 1000)
 }
