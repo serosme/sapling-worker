@@ -12,6 +12,12 @@ export default defineNuxtConfig({
     db: 'sqlite',
   },
 
+  vite: {
+    server: {
+      allowedHosts: true,
+    },
+  },
+
   runtimeConfig: {
     apiToken: '',
     ai: {
